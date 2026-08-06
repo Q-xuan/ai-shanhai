@@ -15,16 +15,22 @@
   - [Prompt(提示词)](#prompt)
   - [Token(词元)](#token)
   - [Model(模型)](#model)
+  - [Harness(执行壳)](#harness)
+  - [Agent Loop(智能体循环)](#agent-loop)
+  - [Prompt Engineering(提示词工程)](#prompt-engineering)
 - [上下文与记忆 Context & Memory](#02-context-and-memory)
   - [Context(上下文)](#context)
   - [Context Window(上下文窗口)](#context-window)
   - [Memory(记忆)](#memory)
   - [Context Rot(上下文腐化)](#context-rot)
+  - [Context Engineering(上下文工程)](#context-engineering)
 - [工具与工作流 Tools & Workflow](#03-tools-and-workflow)
   - [Tool Calling(工具调用)](#tool-calling)
   - [MCP(模型上下文协议)](#mcp)
   - [Subagent(子智能体)](#subagent)
   - [Handoff(交接)](#handoff)
+  - [Graph(图(工作流编排))](#graph)
+  - [Harness Engineering(执行壳工程)](#harness-engineering)
 - [常见坑与误区 Common Pitfalls](#04-pitfalls)
   - [Hallucination(幻觉)](#hallucination)
   - [Prompt Injection(提示词注入)](#prompt-injection)
@@ -152,6 +158,90 @@ Model(模型)就是 AI 的「本体」——一个用海量文本训练出来的
 
 模型半年一换代,为某个模型写的「独门 prompt 技巧」过期得比牛奶还快。投资在「把问题说清楚」上,比投资在记咒语上保值。
 
+<a id="harness"></a>
+
+### Harness(执行壳)
+
+#### 一句话解释
+
+Harness 是套在模型外面的那层软件:系统提示、工具、权限、上下文管理。模型只会「文字进、文字出」,让它看起来会干活的一切,都是 harness 做的。
+
+#### 展开说说
+
+模型本身是个「残废」:不能读文件、不能跑命令、记不住上一句话。是 harness 在每一轮请求前组装好 context、执行模型发来的 tool call、把工具结果喂回去、保管会话历史、在危险操作前喊你确认。Agent Loop 的实际运转者就是它,模型只是循环里被反复调用的一个函数。
+
+这个概念最大的用处是**诊断问题**:同一个模型,在 Kimi Code、Claude Code、Cursor 里表现完全不同——差异主要在 harness(系统提示、工具集、权限策略),不在模型。所以 agent 犯傻时,先怀疑 harness 喂的 context,再怀疑模型本身。
+
+你的绝大多数配置也写在 harness 层:`AGENTS.md`、权限模式、MCP servers,都是给 harness 的指令,不是给模型的。
+
+#### 你会听到有人这么说
+
+> 「同一个模型,为什么 A 工具敢直接改文件,B 工具只会动嘴?——harness 不同。」
+
+> 「别急着换模型,先看看 harness 给它喂了什么东西。」
+
+#### 老司机锐评
+
+对日常体验来说,选 harness 比选模型影响更大。模型是发动机,harness 是整辆车——你天天开的是车,不是发动机。
+
+<a id="agent-loop"></a>
+
+### Agent Loop(智能体循环)
+
+#### 一句话解释
+
+Agent Loop 是 agent 干活的基本节奏:观察 → 思考 → 行动 → 再观察,一圈一圈转,直到任务完成。你按一次回车,这个循环可能自己转上几十圈。
+
+#### 展开说说
+
+每一圈都是一次完整的模型请求:模型输出内容(最终回答,或一个 tool call)→ harness 执行 → 工具结果追加进 context → 模型看着新 context 做下一步决策。循环的停止条件是模型不再发 tool call、直接给出回答。
+
+两个实际推论:
+
+- **每圈都在烧钱**:模型是无状态的,每一圈都把整个 context 重发一遍。一个转 30 圈的任务,账单不是 30 句话,是 30 次全量 context。
+- **循环没有内在刹车**:死磕同一个报错、反复读同一个文件,都是 loop 空转。好的 harness 会限步数、限成本,或者让你一键打断。
+
+Human in the Loop 里的 "loop" 说的也是这个循环——人在圈外等汇报,问题是哪些圈必须有人点头才放行。
+
+#### 你会听到有人这么说
+
+> 「它 loop 了二十多圈还没停,我手动掐了。」
+
+> 「这任务 loop 空转了——工具报错太含糊,它根本不知道下一步干嘛。」
+
+#### 老司机锐评
+
+盯 agent 干活,别数它转了多少圈,看每圈有没有新进展。连续三圈原地踏步就果断打断,比你等它自己「悟」省钱得多。
+
+<a id="prompt-engineering"></a>
+
+### Prompt Engineering(提示词工程)
+
+#### 一句话解释
+
+Prompt Engineering 是「研究怎么把话说清楚给 AI 听」的实践:给足背景、写明约束、定好验收标准,让模型一次就干对。它不是背咒语,是写需求文档。
+
+#### 展开说说
+
+这门「工程」的核心招式其实就几招:
+
+- **给上下文**:项目是什么、文件在哪、要干嘛——相关背景不够,再强的模型也只能瞎猜;
+- **给约束**:别动测试、最小改动、遵守项目规范——不说就等于授权自由发挥;
+- **给验收标准**:做完跑什么命令、看什么输出算成功;
+- **给例子(few-shot)**:贴一两个范例,比写三段形容词管用。
+
+「Prompt Engineering 已死」的说法每年都有一波:模型变聪明了、agent 自己会拆任务了。确实,玄学的部分(咒语、魔法词)在贬值,但**把需求说清楚**这件事在升值——它只是换了个名字,叫 Context Engineering 和 Harness Engineering。
+
+#### 你会听到有人这么说
+
+> 「别背什么『你是资深工程师』的咒语了,把约束写清楚比什么都强。」
+
+> 「这 prompt 我调了一下午,最后发现是少贴了一个类型定义。」
+
+#### 老司机锐评
+
+把 prompt engineering 当写作课,别当魔法课。清晰的指令永不过时,过时的只是「对模型念咒就能显灵」的幻觉。
+
 <a id="02-context-and-memory"></a>
 
 ## 上下文与记忆 · Context & Memory
@@ -274,6 +364,36 @@ Context Rot 指对话越长、塞的东西越多,AI 表现越差的现象:开始
 
 长会话是 AI 编程最大的隐性陷阱。老手的工作节奏是「短会话、勤重启、结论带走」,而不是一个会话聊到天荒地老。
 
+<a id="context-engineering"></a>
+
+### Context Engineering(上下文工程)
+
+#### 一句话解释
+
+Context Engineering 是「系统性策划 AI 每一轮能看到什么」的工程:选哪些文件、写不写 AGENTS.md、何时压缩、工具结果留多少——把 context 当稀缺的工程资源来经营。
+
+#### 展开说说
+
+这个词 2025 年走红(Karpathy、Shopify 的 Tobi 等人公开站台),被视为 prompt engineering 的继任者。逻辑很简单:模型是无状态的,context 是你**唯一可控的输入**,那么决定输出质量的最大变量,就是你往这扇窗口里放了什么。
+
+它管的事比 prompt 宽得多:
+
+- **拿什么进来**:手动 @ 文件、代码库索引、RAG 检索、MCP 工具返回;
+- **留什么常驻**:AGENTS.md、记忆文件、系统提示——每次都占着 token 的那部分;
+- **什么时候清**:会话脏了开新的、窗口满了 compact——防止 Context Rot 的日常操作。
+
+一句话总结它和近亲的分工:Prompt Engineering 管「怎么说」,Context Engineering 管「给它看什么」,Harness Engineering 管「它能干什么」。
+
+#### 你会听到有人这么说
+
+> 「结果差别怪模型,这是 context engineering 没做好——该给的文件没给。」
+
+> 「prompt 写得再花哨,context 是脏的也白搭。」
+
+#### 老司机锐评
+
+这是目前投入产出比最高的一门「工程」:不用训练模型、不用写代码,把喂给 AI 的资料管好,表现立竿见影。新手玩 prompt,老手经营 context。
+
 <a id="03-tools-and-workflow"></a>
 
 ## 工具与工作流 · Tools & Workflow
@@ -390,6 +510,61 @@ Handoff 指把任务从一方移交给另一方——AI 交给人、人交给 AI
 #### 老司机锐评
 
 把「让 AI 写交接文档」养成肌肉记忆。会话要超长、任务要换人、下班要收工——任何中断场景,先 handoff,不吃亏。
+
+<a id="graph"></a>
+
+### Graph(图(工作流编排))
+
+#### 一句话解释
+
+Graph 指把 agent 工作流画成「节点 + 边」的图来编排:节点是步骤(调模型、调工具、人工审核),边是流转规则,状态沿着图走,可以分支、循环、回头。LangGraph 是这一路线的代表。
+
+#### 展开说说
+
+单个 agent 是一条 Agent Loop 直线。但复杂任务需要多条线协作:先检索再生成、失败自动重试、危险操作先给人审——把这些步骤和跳转规则显式建模成一张图,就是 graph 编排。
+
+图里流转的是 **state(状态)**:每个节点读状态、改状态,边决定接下来去哪个节点。边可以是固定顺序,也可以按模型的输出动态选择——这让流程能分叉、能循环、能并行。循环能力正是 graph 和 prompt chain(提示词链)的分水岭:chain 只会闷头往前走,graph 能回头。
+
+注意别和 Knowledge Graph(知识图谱)混了:那是用图来**存知识**,这里说的是用图来**编排流程**。同名,两码事。
+
+#### 你会听到有人这么说
+
+> 「这流程用 LangGraph 建了个 graph,审核节点不通过就回到起草节点重来。」
+
+> 「别写成一条死 chain,这里要按结果分支,得上 graph。」
+
+#### 老司机锐评
+
+简单任务别急着上 graph:一个 agent loop 能搞定的活,画成图只是把复杂度从代码搬进配置。真的需要分支、并行、人审节点了,再请它出场不迟。
+
+<a id="harness-engineering"></a>
+
+### Harness Engineering(执行壳工程)
+
+#### 一句话解释
+
+Harness Engineering 是「设计和打磨 harness 」的工程:系统提示怎么写、工具怎么设计、权限怎么分级、出错怎么兜底——把同一个模型从玩具变成可靠工具的那层手艺。
+
+#### 展开说说
+
+模型能力是模型提供商的事,而 agent 可不可靠,八成取决于壳做得好不好。这门工程管的事:
+
+- **工具设计**:给模型什么工具、描述怎么写、参数怎么校验——Tool Calling 稳不稳全看这里;
+- **系统提示**:行为准则、边界情况、输出格式的几十条军规;
+- **权限与安全**:哪些操作自动放行、哪些必须 Human in the Loop;
+- **兜底机制**:Agent Loop 空转了怎么限步、输出格式错了怎么重试、测试怎么自动跑。
+
+和前两者一起凑成「工程三件套」:Prompt Engineering 管「怎么说」,Context Engineering 管「给它看什么」,Harness Engineering 管「它能做什么、做错了怎么办」。普通用户调前两个,做 agent 产品的人主攻第三个。
+
+#### 你会听到有人这么说
+
+> 「同一个模型,他们家 agent 就是稳——harness engineering 的功底差距。」
+
+> 「这工具描述写得太含糊,模型天天调错,是 harness 的锅。」
+
+#### 老司机锐评
+
+模型半年一换,harness 的工程资产却越攒越厚:好的工具描述、权限策略、校验回路,换个模型照样用。做产品别把宝全押在模型上,壳才是护城河。
 
 <a id="04-pitfalls"></a>
 

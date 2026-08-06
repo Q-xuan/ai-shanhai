@@ -505,7 +505,7 @@ var COLORS = ${JSON.stringify(SECTION_COLORS)};
         dx = n.x - m.x; dy = n.y - m.y;
         d2 = dx * dx + dy * dy || 1;
         d = Math.sqrt(d2);
-        f = 5200 / d2;
+        f = 16000 / d2;
         n.vx += (dx / d) * f; n.vy += (dy / d) * f;
         m.vx -= (dx / d) * f; m.vy -= (dy / d) * f;
       }
@@ -514,15 +514,15 @@ var COLORS = ${JSON.stringify(SECTION_COLORS)};
       n = nodes[LINKS[k][0]]; m = nodes[LINKS[k][1]];
       dx = m.x - n.x; dy = m.y - n.y;
       d = Math.sqrt(dx * dx + dy * dy) || 1;
-      f = (d - 150) * 0.02;
+      f = (d - 260) * 0.01;
       n.vx += (dx / d) * f; n.vy += (dy / d) * f;
       m.vx -= (dx / d) * f; m.vy -= (dy / d) * f;
     }
     for (i = 0; i < nodes.length; i++) {
       n = nodes[i];
       if (i === drag) { n.vx = 0; n.vy = 0; continue; }
-      n.vx = (n.vx - n.x * 0.006) * 0.82;
-      n.vy = (n.vy - n.y * 0.006) * 0.82;
+      n.vx = (n.vx - n.x * 0.0025) * 0.82;
+      n.vy = (n.vy - n.y * 0.0025) * 0.82;
       if (n.vx > 8) n.vx = 8; if (n.vx < -8) n.vx = -8;
       if (n.vy > 8) n.vy = 8; if (n.vy < -8) n.vy = -8;
       n.x += n.vx; n.y += n.vy;
@@ -759,7 +759,7 @@ var COLORS = ${JSON.stringify(SECTION_COLORS)};
   window.addEventListener("resize", function () { resize(); });
 
   resize();
-  for (var i = 0; i < 180; i++) tick();
+  for (var i = 0; i < 300; i++) tick();
   fitView();
   draw();
   frame();
