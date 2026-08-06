@@ -1,0 +1,23 @@
+{
+  "name": "ai-shanhai",
+  "version": "0.1.0",
+  "description": "AI 山海经 · AI 编程黑话词典:用大白话(中文)解释 AI coding 里的英文术语,词脉图可视化的开源词典",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "generate": "tsx scripts/generate.ts",
+    "site": "tsx scripts/build-site.ts",
+    "build": "npm run generate && npm run site",
+    "serve": "tsx scripts/serve.ts",
+    "check": "tsx scripts/check.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "ci": "npm run format:check && npm run check"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "dir": "01-core-concepts",
+    "title": "核心概念",
+    "titleEn": "Core Concepts",
+    "blurb": "一切的基础:不先搞懂这几个词,后面的黑话全是噪音。"
+  },
+  {
+    "dir": "02-context-and-memory",
+    "title": "上下文与记忆",
+    "titleEn": "Context & Memory",
+    "blurb": "AI 的「脑子」其实是一块白板,这一区讲它怎么记事、怎么忘事。"
+  },
+  {
+    "dir": "03-tools-and-workflow",
+    "title": "工具与工作流",
+    "titleEn": "Tools & Workflow",
+    "blurb": "AI 不只是聊天:它怎么动手干活、怎么分工、怎么交接。"
+  },
+  {
+    "dir": "04-pitfalls",
+    "title": "常见坑与误区",
+    "titleEn": "Common Pitfalls",
+    "blurb": "AI 会犯错,而且犯得理直气壮。这一区帮你提前防雷。"
+  },
+  {
+    "dir": "05-culture",
+    "title": "文化与黑话",
+    "titleEn": "Culture & Slang",
+    "blurb": "社区里流行的说法和梗,听懂了你才算入了圈。"
+  }
+]
