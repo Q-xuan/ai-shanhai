@@ -264,12 +264,21 @@
     cursor: pointer;
     z-index: 41;
   }
-  .idx-cols { columns: 2; column-gap: 48px; }
+  .hint .m { display: none; }
   @media (max-width: 760px) {
     .idx-cols { columns: 1; }
     .brand p { display: none; }
-    #q { width: 130px; }
-    .hint { display: none; }
+    #q { width: 100px; font-size: 12.5px; }
+    #fit { display: none; }
+    .topbtn { padding: 6px 10px; letter-spacing: 1px; }
+    /* 窄屏:册页全宽,图例精简,提示换成触屏版 */
+    #drawer { width: 100vw; border-left: none; border-top: 3px double var(--ink); }
+    .legend { font-size: 11px; padding: 5px 10px; line-height: 1.7; }
+    .legend .cname, .legend .credit { display: none; }
+    .hint { right: 10px; bottom: 10px; font-size: 11px; }
+    .hint .d { display: none; }
+    .hint .m { display: inline; }
+    .vtitle { font-size: 38px; letter-spacing: 14px; top: 84px; right: 12px; }
   }
 </style>
 </head>
@@ -297,7 +306,7 @@
     <div><span class="dot" style="background:#7a4a6b"></span><span class="num">伍</span><span class="cname">紫檀</span>文化与黑话</div>
   <div class="credit">词条互相引用成网 · 开源 MIT · 内容源于 entries/</div>
 </div>
-<div class="hint">拖空白平移 · 滚轮缩放 · 点词看释义</div>
+<div class="hint"><span class="d">拖空白平移 · 滚轮缩放 · 点词看释义</span><span class="m">单指拖动 · 双指缩放 · 点词看释义</span></div>
 
 <aside id="drawer" aria-label="词条释义">
   <button id="drawer-close" aria-label="关闭">×</button>
@@ -793,6 +802,8 @@ var COLORS = ["#b3342a","#3a5a7a","#4a7a5a","#b8862f","#7a4a6b"];
     var bw = Math.max(maxX - minX, 1) + 200;
     var bh = Math.max(maxY - minY, 1) + 160;
     view.s = Math.max(0.35, Math.min(1.1, W / bw, H / bh));
+    /* 触屏窄屏:不强求一屏看全,保证默认可读,交由拖动/捏合探索 */
+    if (COARSE) view.s = Math.max(view.s, 0.72);
     view.ox = W / 2 - ((minX + maxX) / 2) * view.s;
     view.oy = H / 2 - ((minY + maxY) / 2) * view.s;
     target = null;
@@ -872,13 +883,15 @@ var COLORS = ["#b3342a","#3a5a7a","#4a7a5a","#b8862f","#7a4a6b"];
       ctx.lineWidth = 1.2;
       ctx.strokeStyle = COLORS[n.c];
       ctx.stroke();
+      /* 标签保持屏幕可读字号:缩小时字不跟着缩,放大时也不过度变大 */
+      var ls = Math.max(0.6, Math.min(3, 1 / view.s));
       ctx.fillStyle = i === selected ? COLORS[n.c] : "#2b2620";
-      ctx.font = "600 13px 'Noto Serif SC','Songti SC','SimSun',serif";
+      ctx.font = "600 " + (13 * ls).toFixed(1) + "px 'Noto Serif SC','Songti SC','SimSun',serif";
       ctx.textAlign = "center";
-      ctx.fillText(n.label, n.x, n.y - r - 17);
+      ctx.fillText(n.label, n.x, n.y - r - 15 * ls);
       ctx.fillStyle = "#6b6152";
-      ctx.font = "12px 'Kaiti SC','KaiTi','STKaiti','Noto Serif SC','SimSun',serif";
-      ctx.fillText(n.trans, n.x, n.y - r - 3);
+      ctx.font = (12 * ls).toFixed(1) + "px 'Kaiti SC','KaiTi','STKaiti','Noto Serif SC','SimSun',serif";
+      ctx.fillText(n.trans, n.x, n.y - r - 2 * ls);
       ctx.globalAlpha = 1;
     }
   }
@@ -925,33 +938,67 @@ var COLORS = ["#b3342a","#3a5a7a","#4a7a5a","#b8862f","#7a4a6b"];
   }
 
   /* ----- 坐标与拾取 ----- */
+  var COARSE = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
   function toWorld(e) {
     var r = canvas.getBoundingClientRect();
     return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
   }
   function pick(p) {
+    var pad = COARSE ? 16 : 8;
     for (var i = nodes.length - 1; i >= 0; i--) {
       var n = nodes[i];
-      var r = radius(n) + 8;
+      var r = radius(n) + pad;
       var dx = p.x - n.x, dy = p.y - n.y;
       if (dx * dx + dy * dy < r * r) return i;
     }
     return -1;
   }
 
-  /* ----- 交互 ----- */
+  /* ----- 交互:单指拖节点/平移,双指捏合缩放 ----- */
+  var pointers = new Map();
+  var pinchStart = null;
+  function pinchInfo() {
+    var pts = Array.from(pointers.values());
+    var dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+    return {
+      d: Math.sqrt(dx * dx + dy * dy) || 1,
+      mx: (pts[0].x + pts[1].x) / 2,
+      my: (pts[0].y + pts[1].y) / 2,
+    };
+  }
   canvas.addEventListener("pointerdown", function (e) {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    canvas.setPointerCapture(e.pointerId);
     moved = 0;
+    if (pointers.size === 2) {
+      drag = -1;
+      panning = false;
+      var pi = pinchInfo();
+      pinchStart = { d: pi.d, mx: pi.mx, my: pi.my, s: view.s, ox: view.ox, oy: view.oy, rect: canvas.getBoundingClientRect() };
+      return;
+    }
     var i = pick(toWorld(e));
     if (i >= 0) {
       drag = i;
-      canvas.setPointerCapture(e.pointerId);
     } else {
       panning = true;
       panStart = { x: e.clientX, y: e.clientY, ox: view.ox, oy: view.oy };
     }
   });
   canvas.addEventListener("pointermove", function (e) {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinchStart && pointers.size >= 2) {
+      var pi = pinchInfo();
+      var ns = Math.max(0.35, Math.min(2.6, pinchStart.s * (pi.d / pinchStart.d)));
+      var wx = (pinchStart.mx - pinchStart.rect.left - pinchStart.ox) / pinchStart.s;
+      var wy = (pinchStart.my - pinchStart.rect.top - pinchStart.oy) / pinchStart.s;
+      view.ox = pi.mx - pinchStart.rect.left - wx * ns;
+      view.oy = pi.my - pinchStart.rect.top - wy * ns;
+      view.s = ns;
+      target = null;
+      moved += 10;
+      return;
+    }
     if (drag >= 0) {
       var p = toWorld(e);
       var n = nodes[drag];
@@ -968,12 +1015,17 @@ var COLORS = ["#b3342a","#3a5a7a","#4a7a5a","#b8862f","#7a4a6b"];
       canvas.style.cursor = hover >= 0 ? "pointer" : "grab";
     }
   });
-  canvas.addEventListener("pointerup", function () {
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (pinchStart) { pinchStart = null; drag = -1; panning = false; return; }
+    if (e.type !== "pointerup") return;
     if (drag >= 0 && moved < 6) selectNode(drag);
     else if (panning && moved < 6) closeDrawer();
     drag = -1;
     panning = false;
-  });
+  }
+  canvas.addEventListener("pointerup", endPointer);
+  canvas.addEventListener("pointercancel", endPointer);
   canvas.addEventListener("pointerleave", function () { hover = -1; });
   canvas.addEventListener("wheel", function (e) {
     e.preventDefault();
