@@ -106,7 +106,7 @@ ${mdToHtml(e.body)}
   const legend = sections
     .map(
       (s, i) =>
-        `    <div><span class="dot" style="background:${SECTION_COLORS[i % SECTION_COLORS.length]}"></span><span class="num">${CN_NUMERALS[i]}</span><span class="cname">${COLOR_NAMES[i % COLOR_NAMES.length]}</span>${s.title}</div>`,
+        `    <div><span class="dot s${i}"></span><span class="num">${CN_NUMERALS[i]}</span><span class="cname">${COLOR_NAMES[i % COLOR_NAMES.length]}</span>${s.title}</div>`,
     )
     .join("\n");
 
@@ -126,6 +126,7 @@ ${mdToHtml(e.body)}
 
   return TEMPLATE.replace("__NODES__", JSON.stringify(nodes))
     .replace("__LINKS__", JSON.stringify(links))
+    .replace("__EDGE_STYLE__", "")
     .replace("__POOL__", pool)
     .replace("__LEGEND__", legend)
     .replace("__INDEX__", indexSections)
@@ -150,7 +151,46 @@ const TEMPLATE = `<!DOCTYPE html>
     --cinnabar: #b3342a;
     --cinnabar-dark: #8c271f;
     --line: #ddd2b8;
+    /* 画布主题变量(canvas 通过 getComputedStyle 读取,单一事实源) */
+    --ridge1: rgba(43, 38, 32, 0.05);
+    --ridge2: rgba(43, 38, 32, 0.07);
+    --edge: rgba(43, 38, 32, 0.13);
+    --node-mode: coin;
+    --edge-style: simple;
+    --sc0: #b3342a; --sc1: #3a5a7a; --sc2: #4a7a5a; --sc3: #b8862f; --sc4: #7a4a6b;
   }
+  /* 意境:青花——釉下钴蓝,单色素描 */
+  body.t-qinghua {
+    --paper: #eef3f5; --card: #f7fafb; --ink: #1d3a5f; --ink-soft: #5a7099;
+    --line: #c3d2de;
+    --ridge1: rgba(29, 58, 95, 0.06); --ridge2: rgba(29, 58, 95, 0.09);
+    --edge: rgba(29, 58, 95, 0.18);
+    --node-mode: plate;
+    --sc0: #1d4e9e; --sc1: #2a5fae; --sc2: #3670be; --sc3: #4a83c8; --sc4: #6496d2;
+  }
+  /* 意境:青铜——夜色铜绿配金文 */
+  body.t-bronze {
+    --paper: #17211c; --card: #1f2d26; --ink: #d8c9a3; --ink-soft: #8f8a6a;
+    --cinnabar: #c9a96a; --cinnabar-dark: #a8873f; --line: #3a4a3e;
+    --ridge1: rgba(216, 201, 163, 0.04); --ridge2: rgba(216, 201, 163, 0.06);
+    --edge: rgba(201, 169, 106, 0.22);
+    --node-mode: ding;
+    --sc0: #c9a96a; --sc1: #6f8f77; --sc2: #8aa082; --sc3: #8a9a6a; --sc4: #9a8a5a;
+  }
+  /* 意境:敦煌——赭石窟壁,石绿土红 */
+  body.t-dunhuang {
+    --paper: #2e2118; --card: #3a2c20; --ink: #e8dcc0; --ink-soft: #b09877;
+    --cinnabar: #d4713f; --cinnabar-dark: #a8542a; --line: #54402e;
+    --ridge1: rgba(232, 220, 192, 0.04); --ridge2: rgba(232, 220, 192, 0.06);
+    --edge: rgba(201, 160, 61, 0.32);
+    --node-mode: star; --edge-style: star;
+    --sc0: #c94f3d; --sc1: #3d7a6a; --sc2: #c9a03d; --sc3: #4a6a9e; --sc4: #8a5a7a;
+  }
+  .dot.s0 { background: var(--sc0); }
+  .dot.s1 { background: var(--sc1); }
+  .dot.s2 { background: var(--sc2); }
+  .dot.s3 { background: var(--sc3); }
+  .dot.s4 { background: var(--sc4); }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
   body {
@@ -238,7 +278,7 @@ const TEMPLATE = `<!DOCTYPE html>
     z-index: 10;
     font-size: 12.5px;
     color: var(--ink-soft);
-    background: rgba(253, 250, 242, 0.88);
+    background: color-mix(in srgb, var(--card) 88%, transparent);
     border: 1px solid var(--line);
     border-radius: 6px;
     padding: 8px 14px;
@@ -331,7 +371,7 @@ const TEMPLATE = `<!DOCTYPE html>
   #drawer-body ul { margin: 0 0 10px 1.4em; font-size: 15px; line-height: 1.9; }
   #drawer-body li { margin-bottom: 4px; }
   #drawer-body blockquote {
-    background: rgba(179, 52, 42, 0.06);
+    background: color-mix(in srgb, var(--cinnabar) 7%, transparent);
     border-left: 3px solid var(--cinnabar);
     padding: 8px 16px;
     margin: 8px 0;
@@ -426,6 +466,7 @@ const TEMPLATE = `<!DOCTYPE html>
     <p>AI 编程黑话词典 · 术语皆英文 · 释义皆中文 · __SECTION_COUNT__ 区 __TERM_COUNT__ 词</p>
   </div>
   <input id="q" type="search" placeholder="搜词:agent / token / 幻觉 …" aria-label="搜索词条">
+  <button class="topbtn" id="theme-btn" title="切换意境:宣纸 / 青花 / 青铜 / 敦煌">宣 纸</button>
   <button class="topbtn" id="fit" title="回到全景">回 中</button>
   <button class="topbtn" id="index-btn" title="词条索引与关于">索 引</button>
 </header>
@@ -462,7 +503,7 @@ __POOL__
 <script>
 var NODES = __NODES__;
 var LINKS = __LINKS__;
-var COLORS = ${JSON.stringify(SECTION_COLORS)};
+var EDGE_STYLE = "__EDGE_STYLE__";
 
 (function () {
   var canvas = document.getElementById("graph");
@@ -555,8 +596,35 @@ var COLORS = ${JSON.stringify(SECTION_COLORS)};
   }
 
   /* ----- 绘制 ----- */
-  /* 水墨远山:两层山脊剪影,极淡墨色,铺在宣纸底上(屏幕坐标,不随视图变) */
-  function ridge(base, amp, freq, phase, alpha) {
+  /* 主题从 CSS 变量读取(getComputedStyle),CSS 是唯一事实源 */
+  function hexA(hex, a) {
+    if (hex.charAt(0) !== "#") return hex;
+    var h = hex.slice(1);
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    return "rgba(" + parseInt(h.slice(0, 2), 16) + "," + parseInt(h.slice(2, 4), 16) + "," + parseInt(h.slice(4, 6), 16) + "," + a + ")";
+  }
+  function readTheme() {
+    var cs = getComputedStyle(document.body);
+    var g = function (k) { return cs.getPropertyValue(k).trim(); };
+    return {
+      paper: g("--paper"), card: g("--card"), ink: g("--ink"), soft: g("--ink-soft"),
+      hot: g("--cinnabar"), ridge1: g("--ridge1"), ridge2: g("--ridge2"), edge: g("--edge"),
+      nodeMode: g("--node-mode") || "coin", edgeStyle: g("--edge-style") || "simple",
+      palette: [g("--sc0"), g("--sc1"), g("--sc2"), g("--sc3"), g("--sc4")],
+    };
+  }
+  var THEME = readTheme();
+  var THEME_ORDER = ["default", "qinghua", "bronze", "dunhuang"];
+  var THEME_LABELS = { default: "宣 纸", qinghua: "青 花", bronze: "青 铜", dunhuang: "敦 煌" };
+  function setTheme(name) {
+    document.body.className = name === "default" ? "" : "t-" + name;
+    THEME = readTheme();
+    document.getElementById("theme-btn").textContent = THEME_LABELS[name] || "宣 纸";
+    try { localStorage.setItem("shanhai-theme", name); } catch (e) { /* file:// 下可能失败,无碍 */ }
+  }
+
+  /* 水墨远山:两层山脊剪影,铺在底色上(屏幕坐标,不随视图变) */
+  function ridge(base, amp, freq, phase, color) {
     ctx.beginPath();
     ctx.moveTo(-60, H + 10);
     for (var x = -60; x <= W + 60; x += 16) {
@@ -569,16 +637,167 @@ var COLORS = ${JSON.stringify(SECTION_COLORS)};
     }
     ctx.lineTo(W + 60, H + 10);
     ctx.closePath();
-    ctx.fillStyle = "rgba(43,38,32," + alpha + ")";
+    ctx.fillStyle = color;
     ctx.fill();
+  }
+
+  /* ----- 连线样式:simple 微弯曲线 / brush 墨笔飞白 / thread 朱丝结缘 / wash 水墨晕染 / star 星宿图 ----- */
+  function drawEdge(n, m, cx, cy, hot) {
+    var style = EDGE_STYLE || THEME.edgeStyle;
+    if (style === "brush") {
+      /* 毛笔:沿曲线填一条两端出锋的墨带,起笔收笔细、行笔粗 */
+      var T = 26, j, t, u, px, py, nx2, ny2, wgt;
+      var pts = [];
+      for (j = 0; j <= T; j++) {
+        t = j / T; u = 1 - t;
+        pts.push([u * u * n.x + 2 * u * t * cx + t * t * m.x, u * u * n.y + 2 * u * t * cy + t * t * m.y]);
+      }
+      ctx.beginPath();
+      for (j = 0; j <= T; j++) {
+        var p0 = pts[Math.max(0, j - 1)], p1 = pts[Math.min(T, j + 1)];
+        var ddx = p1[0] - p0[0], ddy = p1[1] - p0[1];
+        var dd = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+        wgt = (hot ? 2.4 : 1.6) * Math.pow(Math.sin((Math.PI * j) / T), 0.6) + 0.01;
+        nx2 = (-ddy / dd) * wgt; ny2 = (ddx / dd) * wgt;
+        if (j === 0) ctx.moveTo(pts[j][0] + nx2, pts[j][1] + ny2);
+        else ctx.lineTo(pts[j][0] + nx2, pts[j][1] + ny2);
+      }
+      for (j = T; j >= 0; j--) {
+        var q0 = pts[Math.max(0, j - 1)], q1 = pts[Math.min(T, j + 1)];
+        var ddx2 = q1[0] - q0[0], ddy2 = q1[1] - q0[1];
+        var dd2 = Math.sqrt(ddx2 * ddx2 + ddy2 * ddy2) || 1;
+        wgt = (hot ? 2.4 : 1.6) * Math.pow(Math.sin((Math.PI * j) / T), 0.6) + 0.01;
+        ctx.lineTo(pts[j][0] + (ddy2 / dd2) * wgt, pts[j][1] - (ddx2 / dd2) * wgt);
+      }
+      ctx.closePath();
+      ctx.fillStyle = hot ? hexA(THEME.hot, 0.6) : hexA(THEME.ink, 0.28);
+      ctx.fill();
+      return;
+    }
+    if (style === "thread") {
+      /* 朱丝:两股红线相缠,如中国结、月老牵线 */
+      var off = hot ? 3 : 2.2;
+      var ddx3 = m.x - n.x, ddy3 = m.y - n.y;
+      var dd3 = Math.sqrt(ddx3 * ddx3 + ddy3 * ddy3) || 1;
+      var px3 = (-ddy3 / dd3) * off, py3 = (ddx3 / dd3) * off;
+      ctx.lineWidth = hot ? 1.3 : 0.9;
+      ctx.strokeStyle = hexA(THEME.hot, hot ? 0.85 : 0.4);
+      ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.quadraticCurveTo(cx + px3, cy + py3, m.x, m.y); ctx.stroke();
+      ctx.strokeStyle = hexA(THEME.hot, hot ? 0.5 : 0.22);
+      ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.quadraticCurveTo(cx - px3, cy - py3, m.x, m.y); ctx.stroke();
+      return;
+    }
+    if (style === "wash") {
+      /* 晕染:淡墨洇开,像宣纸上洇出的水汽 */
+      ctx.save();
+      ctx.shadowColor = hot ? hexA(THEME.hot, 0.55) : hexA(THEME.ink, 0.4);
+      ctx.shadowBlur = hot ? 7 : 5;
+      ctx.strokeStyle = hot ? hexA(THEME.hot, 0.35) : hexA(THEME.ink, 0.1);
+      ctx.lineWidth = hot ? 2.2 : 1.8;
+      ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.quadraticCurveTo(cx, cy, m.x, m.y); ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = hot ? hexA(THEME.hot, 0.55) : hexA(THEME.ink, 0.16);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.quadraticCurveTo(cx, cy, m.x, m.y); ctx.stroke();
+      return;
+    }
+    if (style === "star") {
+      /* 星宿图:敦煌星图式细虚线连星官 */
+      ctx.setLineDash(hot ? [] : [2, 5]);
+      ctx.strokeStyle = hot ? hexA(THEME.hot, 0.75) : THEME.edge;
+      ctx.lineWidth = hot ? 1.4 : 0.9;
+      ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.quadraticCurveTo(cx, cy, m.x, m.y); ctx.stroke();
+      ctx.setLineDash([]);
+      return;
+    }
+    /* simple:微弯的圆头曲线 */
+    ctx.strokeStyle = hot ? hexA(THEME.hot, 0.7) : THEME.edge;
+    ctx.lineWidth = hot ? 2 : 1.1;
+    ctx.beginPath();
+    ctx.moveTo(n.x, n.y);
+    ctx.quadraticCurveTo(cx, cy, m.x, m.y);
+    ctx.stroke();
+  }
+
+  /* 节点造型:coin 铜钱(外圆内方)/ plate 青花盘(双圈)/ ding 青铜方鼎(圆角方器)/ star 星宿(光点) */
+  function drawNode(n, r, sel, hov) {
+    var col = THEME.palette[n.c % THEME.palette.length];
+    var lw = sel || hov ? 2.6 : 1.6;
+    if (THEME.nodeMode === "plate") {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = sel ? col : THEME.card;
+      ctx.fill();
+      ctx.lineWidth = lw;
+      ctx.strokeStyle = col;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r * 0.52, 0, Math.PI * 2);
+      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = sel ? THEME.card : col;
+      ctx.stroke();
+      return;
+    }
+    if (THEME.nodeMode === "ding") {
+      var k = r * 0.35, x0 = n.x - r, y0 = n.y - r, s2 = r * 2;
+      ctx.beginPath();
+      ctx.moveTo(x0 + k, y0);
+      ctx.arcTo(x0 + s2, y0, x0 + s2, y0 + s2, k);
+      ctx.arcTo(x0 + s2, y0 + s2, x0, y0 + s2, k);
+      ctx.arcTo(x0, y0 + s2, x0, y0, k);
+      ctx.arcTo(x0, y0, x0 + s2, y0, k);
+      ctx.closePath();
+      ctx.fillStyle = sel ? col : THEME.card;
+      ctx.fill();
+      ctx.lineWidth = lw;
+      ctx.strokeStyle = col;
+      ctx.stroke();
+      /* 器心一点铭文 */
+      var g = r * 0.3;
+      ctx.beginPath();
+      ctx.rect(n.x - g / 2, n.y - g / 2, g, g);
+      ctx.fillStyle = sel ? THEME.card : col;
+      ctx.fill();
+      return;
+    }
+    if (THEME.nodeMode === "star") {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = sel ? THEME.hot : col;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha *= 0.6;
+      ctx.stroke();
+      ctx.globalAlpha /= 0.6;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r * 0.45, 0, Math.PI * 2);
+      ctx.fillStyle = sel ? THEME.hot : col;
+      ctx.fill();
+      return;
+    }
+    /* coin 铜钱:外圆内方——天圆地方 */
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = sel ? col : THEME.card;
+    ctx.fill();
+    ctx.lineWidth = lw;
+    ctx.strokeStyle = col;
+    ctx.stroke();
+    var sq = r * 0.52;
+    ctx.beginPath();
+    ctx.rect(n.x - sq / 2, n.y - sq / 2, sq, sq);
+    ctx.fillStyle = THEME.paper;
+    ctx.fill();
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = col;
+    ctx.stroke();
   }
 
   function draw() {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.fillStyle = "#f5efe0";
+    ctx.fillStyle = THEME.paper;
     ctx.fillRect(0, 0, W, H);
-    ridge(H * 0.86, 70, 1.0, 1.3, 0.05);
-    ridge(H * 0.92, 100, 1.7, 4.1, 0.07);
+    ridge(H * 0.86, 70, 1.0, 1.3, THEME.ridge1);
+    ridge(H * 0.92, 100, 1.7, 4.1, THEME.ridge2);
     ctx.translate(view.ox, view.oy);
     ctx.scale(view.s, view.s);
     ctx.lineCap = "round";
@@ -586,18 +805,12 @@ var COLORS = ${JSON.stringify(SECTION_COLORS)};
     for (i = 0; i < LINKS.length; i++) {
       n = nodes[LINKS[i][0]]; m = nodes[LINKS[i][1]];
       var hot = focus >= 0 && (LINKS[i][0] === focus || LINKS[i][1] === focus);
-      /* 笔意连线:微弯的曲线,圆头,像提笔直下的一笔 */
       var mx = (n.x + m.x) / 2, my = (n.y + m.y) / 2;
       var dx = m.x - n.x, dy = m.y - n.y;
       var d = Math.sqrt(dx * dx + dy * dy) || 1;
       var bend = (i % 2 === 0 ? 1 : -1) * d * 0.07;
       var cx = mx - (dy / d) * bend, cy = my + (dx / d) * bend;
-      ctx.strokeStyle = hot ? "rgba(179,52,42,0.7)" : "rgba(43,38,32,0.13)";
-      ctx.lineWidth = hot ? 2 : 1.1;
-      ctx.beginPath();
-      ctx.moveTo(n.x, n.y);
-      ctx.quadraticCurveTo(cx, cy, m.x, m.y);
-      ctx.stroke();
+      drawEdge(n, m, cx, cy, hot);
     }
     for (i = 0; i < nodes.length; i++) {
       n = nodes[i];
@@ -605,36 +818,21 @@ var COLORS = ${JSON.stringify(SECTION_COLORS)};
       var r = radius(n);
       ctx.globalAlpha = dim ? 0.18 : 1;
       if (i === selected) {
-        /* 朱批圈:选中时外圈一道朱砂 */
+        /* 朱批圈:选中时外圈一道 */
         ctx.beginPath();
         ctx.arc(n.x, n.y, r + 7, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(179,52,42,0.55)";
+        ctx.strokeStyle = hexA(THEME.hot, 0.55);
         ctx.lineWidth = 1.6;
         ctx.stroke();
       }
-      /* 铜钱节点:外圆内方——天圆地方 */
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = i === selected ? COLORS[n.c] : "#fdfaf2";
-      ctx.fill();
-      ctx.lineWidth = i === selected || i === hover ? 2.6 : 1.6;
-      ctx.strokeStyle = COLORS[n.c];
-      ctx.stroke();
-      var sq = r * 0.52;
-      ctx.beginPath();
-      ctx.rect(n.x - sq / 2, n.y - sq / 2, sq, sq);
-      ctx.fillStyle = i === selected ? "#f5efe0" : "#f5efe0";
-      ctx.fill();
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = COLORS[n.c];
-      ctx.stroke();
+      drawNode(n, r, i === selected, i === hover);
       /* 标签保持屏幕可读字号:缩小时字不跟着缩,放大时也不过度变大 */
       var ls = Math.max(0.6, Math.min(3, 1 / view.s));
-      ctx.fillStyle = i === selected ? COLORS[n.c] : "#2b2620";
+      ctx.fillStyle = i === selected ? THEME.palette[n.c % THEME.palette.length] : THEME.ink;
       ctx.font = "600 " + (13 * ls).toFixed(1) + "px 'Noto Serif SC','Songti SC','SimSun',serif";
       ctx.textAlign = "center";
       ctx.fillText(n.label, n.x, n.y - r - 15 * ls);
-      ctx.fillStyle = "#6b6152";
+      ctx.fillStyle = THEME.soft;
       ctx.font = (12 * ls).toFixed(1) + "px 'Kaiti SC','KaiTi','STKaiti','Noto Serif SC','SimSun',serif";
       ctx.fillText(n.trans, n.x, n.y - r - 2 * ls);
       ctx.globalAlpha = 1;
@@ -805,11 +1003,21 @@ var COLORS = ${JSON.stringify(SECTION_COLORS)};
   document.getElementById("fit").addEventListener("click", function () { closeDrawer(); fitView(); });
   document.getElementById("index-btn").addEventListener("click", function () { overlay.classList.add("show"); });
   document.getElementById("index-close").addEventListener("click", function () { overlay.classList.remove("show"); });
+  document.getElementById("theme-btn").addEventListener("click", function () {
+    var cur = "default";
+    for (var t = 0; t < THEME_ORDER.length; t++) {
+      if (document.getElementById("theme-btn").textContent === THEME_LABELS[THEME_ORDER[t]]) cur = THEME_ORDER[t];
+    }
+    setTheme(THEME_ORDER[(THEME_ORDER.indexOf(cur) + 1) % THEME_ORDER.length]);
+  });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") { closeDrawer(); overlay.classList.remove("show"); }
   });
   window.addEventListener("resize", function () { resize(); });
 
+  var savedTheme = "default";
+  try { savedTheme = localStorage.getItem("shanhai-theme") || "default"; } catch (e) { /* 忽略 */ }
+  setTheme(savedTheme);
   resize();
   for (var i = 0; i < 300; i++) tick();
   fitView();
